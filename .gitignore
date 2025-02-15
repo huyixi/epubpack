@@ -1,4 +1,6 @@
 test/
+epub/
+output/
 *.DS_Store
 node_modules
 *.log
