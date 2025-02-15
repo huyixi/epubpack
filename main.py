@@ -203,9 +203,8 @@ def generate_ebook(root_dir, output_format="epub", output_name=None):
     # 最后处理一遍主文件的换行
     with open(main_md, 'r', encoding='utf-8') as f:
         content = f.read()
-    processed_content = preprocess_markdown(content)
     with open(main_md, 'w', encoding='utf-8') as f:
-        f.write(processed_content)
+        f.write(content)
 
     output_file = os.path.join(root_dir, f"{output_name or metadata['title'] or 'book'}.{output_format}")
     generate_with_pandoc(main_md, output_file, output_format)
