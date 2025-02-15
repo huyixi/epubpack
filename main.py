@@ -175,7 +175,7 @@ def process_image_urls_in_md(md_file, output_dir):
 
     return compressed_images
 
-def generate_ebook(root_dir, output_format="epub", output_name=None):
+def generate_ebook(root_dir, output_format="epub", output_name=None, output_dir=None):
     """生成电子书的主要函数"""
     temp_dir = os.path.join(root_dir, "_booktemp")
     os.makedirs(temp_dir, exist_ok=True)
@@ -206,7 +206,13 @@ def generate_ebook(root_dir, output_format="epub", output_name=None):
     with open(main_md, 'w', encoding='utf-8') as f:
         f.write(content)
 
-    output_file = os.path.join(root_dir, f"{output_name or metadata['title'] or 'book'}.{output_format}")
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, f"{output_name or metadata['title'] or 'book'}.{output_format}")
+    else:
+        output_file = os.path.join(root_dir, f"{output_name or metadata['title'] or 'book'}.{output_format}")
+
     generate_with_pandoc(main_md, output_file, output_format)
     return True
 
@@ -316,6 +322,7 @@ def generate_with_pandoc(input_md, output_file, output_format):
 
 if __name__ == "__main__":
     base_dir = './test'
+    output_dir = './epub'
     dirs_to_process = [
         item for item in os.listdir(base_dir)
         if os.path.isdir(os.path.join(base_dir, item))
@@ -348,7 +355,7 @@ if __name__ == "__main__":
                     sub_pbar.update(1)
 
                     sub_pbar.set_description("转换为电子书格式")
-                    if generate_ebook(full_path, "epub", output_name=item):
+                    if generate_ebook(full_path, "epub", output_name=item,output_dir=output_dir):
                         successful += 1
                         sub_pbar.update(1)
                     else:
