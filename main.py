@@ -9,44 +9,19 @@ from PIL import Image
 import re
 from tqdm import tqdm
 from natsort import natsorted
+import concurrent.futures
 
 def preprocess_markdown(content: str) -> str:
-    """Preprocess Markdown content to handle line breaks without affecting code blocks or lists."""
+    def escape_html_tags(text):
+        # 匹配 <img> 标签（包括自闭合标签）
+        return re.sub(
+            r'<(img)(\s+[^>]*?)?/?>',
+            lambda m: f"&lt;{m.group(1)}{m.group(2) or ''}&gt;",
+            text,
+            flags=re.IGNORECASE
+        )
 
-    # To store and temporarily replace code blocks and list blocks
-    code_blocks = []
-    list_blocks = []
-
-    # Save the code block and return a placeholder
-    def save_code_block(match):
-        code_blocks.append(match.group(0))
-        return f"CODE_BLOCK_{len(code_blocks)-1}"
-
-    # Save the list block and return a placeholder
-    def save_list_block(match):
-        list_blocks.append(match.group(0))
-        return f"LIST_BLOCK_{len(list_blocks)-1}"
-
-    # 修改这里的正则表达式以正确匹配列表
-    # Temporarily replace code blocks and lists with placeholders
-    content = re.sub(r'```[\s\S]*?```', save_code_block, content)
-    # 修改列表匹配的正则表达式
-    content = re.sub(r'(?m)^[ ]*[-*+][ ]+.*?(?=\n\n|\Z)', save_list_block, content)
-
-    # Process the content for paragraph breaks: replace single newlines in non-block content
-    def process_paragraphs(match):
-        # Process only the paragraphs not in code or list blocks
-        return re.sub(r'\n(?!\n)', ' ', match.group(0).strip())
-
-    content = re.sub(r'(?<!CODE_BLOCK_\d+)(?<!LIST_BLOCK_\d+)(?<=\S)[^\n]*\n+[^\n]*(?=\n{2}|\Z)', process_paragraphs, content)
-
-    # Restore the code blocks
-    for i, block in enumerate(code_blocks):
-        content = content.replace(f"CODE_BLOCK_{i}", block)
-
-    # Restore the list blocks
-    for i, block in enumerate(list_blocks):
-        content = content.replace(f"LIST_BLOCK_{i}", block)
+    content = escape_html_tags(content)
 
     return content
 
@@ -101,7 +76,6 @@ def download_image(url, output_dir):
                 os.remove(image_path)
             return None
 
-        print(f"已下载并保存图像：{image_path}")
         return image_path
 
     except Exception as e:
@@ -139,12 +113,12 @@ def compress_image(image_path, output_dir=None, max_size=(200, 200)):
             # 获取压缩后文件大小
             compressed_size = os.path.getsize(compressed_path) / 1024  # 转换为 KB
 
-            print(f"压缩图像: {compressed_path}")
-            print(f"原始尺寸: {original_dimensions[0]}x{original_dimensions[1]}px")
-            print(f"压缩后尺寸: {compressed_dimensions[0]}x{compressed_dimensions[1]}px")
-            print(f"原始大小: {original_size:.2f}KB")
-            print(f"压缩后大小: {compressed_size:.2f}KB")
-            print(f"压缩率: {(1 - compressed_size/original_size)*100:.2f}%")
+            # print(f"压缩图像: {compressed_path}")
+            # print(f"原始尺寸: {original_dimensions[0]}x{original_dimensions[1]}px")
+            # print(f"压缩后尺寸: {compressed_dimensions[0]}x{compressed_dimensions[1]}px")
+            # print(f"原始大小: {original_size:.2f}KB")
+            # print(f"压缩后大小: {compressed_size:.2f}KB")
+            # print(f"压缩率: {(1 - compressed_size/original_size)*100:.2f}%")
 
             return compressed_path
     except Exception as e:
@@ -158,63 +132,40 @@ def process_image_urls_in_md(md_file, output_dir):
 
     image_urls = re.findall(r'!\[.*?\]\((http[^\)]+)\)', content)
     compressed_images = []
+    replacements = []
 
-    # 显示图片处理进度
-    with tqdm(image_urls, desc="处理图片", position=2, leave=False) as img_pbar:
-        for url in img_pbar:
-            img_pbar.set_description(f"下载: {url[:30]}...")
-            image_path = download_image(url, output_dir)
+    def process_single_url(url):
+        try:
+            image_path = download_image(url,output_dir)
             if image_path:
-                compressed_image_path = compress_image(image_path, output_dir)
+                compressed_image_path = compress_image(image_path,output_dir)
                 if compressed_image_path:
-                    compressed_images.append(compressed_image_path)
-                    content = content.replace(url, os.path.basename(compressed_image_path))
+                    return (url, os.path.basename(compressed_image_path))
+        except Exception as e:
+            print(f"Error processing {url[:30]}...: {str(e)}")
+        return (None, None)
+
+    # 创建线程池执行并行下载
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_single_url, url) for url in image_urls]
+
+        # 使用tqdm显示并行处理进度
+        with tqdm(total=len(image_urls), desc="并行处理图片") as pbar:
+            for future in concurrent.futures.as_completed(futures):
+                original_url, new_filename = future.result()
+                if new_filename:
+                    replacements.append((original_url, new_filename))
+                    compressed_images.append(os.path.join(output_dir, new_filename))
+                pbar.update(1)
+
+    for original_url, new_filename in replacements:
+        print("original:",original_url,"new:",new_filename)
+        content = content.replace(original_url, f"images/{new_filename}")
 
     with open(md_file, 'w', encoding='utf-8') as f:
-        f.write(content)
+            f.write(content)
 
     return compressed_images
-
-def generate_ebook(root_dir, output_format="epub", output_name=None, output_dir=None):
-    """生成电子书的主要函数"""
-    temp_dir = os.path.join(root_dir, "_booktemp")
-    os.makedirs(temp_dir, exist_ok=True)
-
-    # 为图片创建专门的目录
-    images_dir = os.path.join(temp_dir, "images")
-    os.makedirs(images_dir, exist_ok=True)
-
-    metadata = generate_metadata(root_dir)
-    main_md = os.path.join(temp_dir, "main.md")
-
-    with open(main_md, "w", encoding="utf-8") as f:
-        f.write("---\n")
-        f.write(f"title: {metadata['title']}\n")
-        f.write(f"author: {metadata['author']}\n")
-        f.write(f"date: {metadata['date']}\n")
-        f.write("lang: zh-CN\n")
-        f.write("---\n\n")
-
-        process_directory(root_dir, f, root_dir, 0)
-
-    # 处理Markdown中的在线图片
-    process_image_urls_in_md(main_md, images_dir)
-
-    # 最后处理一遍主文件的换行
-    with open(main_md, 'r', encoding='utf-8') as f:
-        content = f.read()
-    with open(main_md, 'w', encoding='utf-8') as f:
-        f.write(content)
-
-
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f"{output_name or metadata['title'] or 'book'}.{output_format}")
-    else:
-        output_file = os.path.join(root_dir, f"{output_name or metadata['title'] or 'book'}.{output_format}")
-
-    generate_with_pandoc(main_md, output_file, output_format)
-    return True
 
 def generate_metadata(root_dir):
     """生成电子书元数据"""
@@ -301,7 +252,9 @@ def generate_with_pandoc(input_md, output_file, output_format):
         output_file,
         "--toc",
         "--toc-depth=3",
-        "--standalone"
+        "--standalone",
+        "--wrap=none",
+        "--css=./config/style.css"
     ]
 
     if output_format == "epub":
@@ -320,8 +273,47 @@ def generate_with_pandoc(input_md, output_file, output_format):
         print(f"生成电子书失败: {e}")
         print(f"错误输出: {e.stderr}")
 
+def generate_ebook(root_dir, output_format="epub", output_name=None, output_dir=None):
+    """生成电子书的主要函数"""
+    temp_dir = os.path.join(root_dir, "_booktemp")
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # 为图片创建专门的目录
+    images_dir = os.path.join(temp_dir, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    metadata = generate_metadata(root_dir)
+    main_md = os.path.join(temp_dir, "main.md")
+
+    with open(main_md, "w", encoding="utf-8") as f:
+        f.write("---\n")
+        f.write(f"title: {metadata['title']}\n")
+        f.write(f"author: {metadata['author']}\n")
+        f.write(f"date: {metadata['date']}\n")
+        f.write("lang: zh-CN\n")
+        f.write("---\n\n")
+
+        process_directory(root_dir, f, root_dir, 0)
+
+    # 处理Markdown中的在线图片
+    process_image_urls_in_md(main_md, images_dir)
+    with open(main_md, 'r', encoding='utf-8') as f:
+            content = f.read()
+    content = preprocess_markdown(content)
+    with open(main_md, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, f"{output_name or metadata['title'] or 'book'}.{output_format}")
+    else:
+        output_file = os.path.join(root_dir, f"{output_name or metadata['title'] or 'book'}.{output_format}")
+
+    generate_with_pandoc(main_md, output_file, output_format)
+    return True
+
 if __name__ == "__main__":
-    base_dir = './test'
+    base_dir = './t3'
     output_dir = './epub'
     dirs_to_process = [
         item for item in os.listdir(base_dir)

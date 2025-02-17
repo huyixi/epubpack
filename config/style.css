@@ -1,0 +1,32 @@
+pre {
+    margin: 0;
+    padding: 1em;
+    background: #f6f8fa;
+    border-radius: 4px;
+    line-height: 1.2;
+    overflow-x: auto;
+}
+
+/* 所有代码相关的容器 */
+pre,
+code,
+.sourceCode {
+    margin: 0 !important;
+    line-height: 1.2 !important;
+}
+
+/* 代码行 */
+pre span {
+    display: block;
+    min-height: 1em;
+}
+
+/* 移除行间空白 */
+pre br {
+    display: none;
+}
+
+code {
+    font-family: "Source Code Pro", Consolas, Monaco, monospace;
+    font-size: 0.9em;
+}
