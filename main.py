@@ -12,9 +12,9 @@ from natsort import natsorted
 import concurrent.futures
 import json
 import logging
-from typing import Dict, Any
+import hashlib
 
-def load_config(config_path:str = "./config/config.json")->Dict[str,Any]:
+def load_config(config_path="./config/config.json"):
     config={}
 
     try:
@@ -30,9 +30,9 @@ def load_config(config_path:str = "./config/config.json")->Dict[str,Any]:
 
     return config
 
-def preprocess_markdown(content: str) -> str:
+def preprocess_markdown(content):
+    # 部分 <img> 标签会导致 EPUB 报错
     def escape_html_tags(text):
-        # 匹配 <img> 标签（包括自闭合标签）
         return re.sub(
             r'<(img)(\s+[^>]*?)?/?>',
             lambda m: f"&lt;{m.group(1)}{m.group(2) or ''}&gt;",
@@ -73,7 +73,8 @@ def download_image(url, output_dir):
             os.makedirs(output_dir)
 
         # 生成唯一的文件名
-        image_name = f"image_{datetime.now().strftime('%Y%m%d_%H%M%S')}{final_ext}"
+        hash_value = hashlib.md5(url.encode()).hexdigest()[:8]
+        image_name = f"image_{datetime.now().strftime('%H%M%S')}_{hash_value}{final_ext}"
         image_path = os.path.join(output_dir, image_name)
 
         # 先保存原始图片数据
@@ -88,7 +89,7 @@ def download_image(url, output_dir):
                     img = img.convert('RGB')
                 # 根据扩展名选择保存格式
                 save_format = 'JPEG' if final_ext == '.jpg' else 'PNG'
-                img.save(image_path, save_format, quality=85)
+                img.save(image_path, save_format, quality=50)
         except Exception as e:
             print(f"图片处理失败: {e}")
             if os.path.exists(image_path):
