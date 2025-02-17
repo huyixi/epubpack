@@ -1,0 +1,38 @@
+{
+  "paths": {
+    "base_dir": "./test",
+    "output_dir": "./epub",
+    "temp_dir": "_booktemp",
+    "images_dir": "images"
+  },
+  "image_settings": {
+    "download": {
+      "default_ext": ".jpg",
+      "webp_to_jpg": true,
+      "save_original": false
+    },
+    "compression": {
+      "max_width": 200,
+      "max_height": 200,
+      "quality": 85,
+      "target_format": "JPEG"
+    }
+  },
+  "ebook": {
+    "formats": ["epub", "pdf"],
+    "pandoc": {
+      "css": "config/style.css",
+      "cover_image": "assets/cover.jpg",
+      "metadata": {
+        "lang": "zh-CN",
+        "toc_depth": 3,
+        "wrap": "none"
+      }
+    }
+  },
+  "advanced": {
+    "parallel_workers": 4,
+    "log_level": "INFO",
+    "cleanup_temp": true
+  }
+}

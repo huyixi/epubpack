@@ -10,6 +10,25 @@ import re
 from tqdm import tqdm
 from natsort import natsorted
 import concurrent.futures
+import json
+import logging
+from typing import Dict, Any
+
+def load_config(config_path:str = "./config/config.json")->Dict[str,Any]:
+    config={}
+
+    try:
+        with open(config_path,'r',encoding='utf-8') as f:
+            config = json.load(f) or {}
+            logging.info(f"Load config file success: {config_path}")
+    except FileNotFoundError:
+        logging.error(f"配置文件 {config_path} 未找到")
+    except json.JSONDecodeError as e:
+        logging.error(f"配置文件解析失败: {str(e)}")
+    except Exception as e:
+        logging.error(f"加载配置文件失败: {str(e)}")
+
+    return config
 
 def preprocess_markdown(content: str) -> str:
     def escape_html_tags(text):
@@ -159,7 +178,6 @@ def process_image_urls_in_md(md_file, output_dir):
                 pbar.update(1)
 
     for original_url, new_filename in replacements:
-        print("original:",original_url,"new:",new_filename)
         content = content.replace(original_url, f"images/{new_filename}")
 
     with open(md_file, 'w', encoding='utf-8') as f:
@@ -251,10 +269,8 @@ def generate_with_pandoc(input_md, output_file, output_format):
         "-o",
         output_file,
         "--toc",
-        "--toc-depth=3",
         "--standalone",
-        "--wrap=none",
-        "--css=./config/style.css"
+        "--no-highlight"
     ]
 
     if output_format == "epub":
@@ -313,8 +329,9 @@ def generate_ebook(root_dir, output_format="epub", output_name=None, output_dir=
     return True
 
 if __name__ == "__main__":
-    base_dir = './t3'
-    output_dir = './epub'
+    CONFIG = load_config()
+    base_dir = CONFIG["paths"]["base_dir"]
+    output_dir =  CONFIG["paths"]["output_dir"]
     dirs_to_process = [
         item for item in os.listdir(base_dir)
         if os.path.isdir(os.path.join(base_dir, item))
@@ -324,7 +341,6 @@ if __name__ == "__main__":
     successful = 0
     failed = 0
 
-    print("开始处理电子书...")
     with tqdm(dirs_to_process, desc="总进度", position=0) as pbar:
         for item in pbar:
             pbar.set_description(f"处理目录: {item}")
