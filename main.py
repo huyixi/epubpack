@@ -97,7 +97,8 @@ def download_image(url, output_dir):
                     img = img.convert('RGB')
                 # 根据扩展名选择保存格式
                 save_format = 'JPEG' if final_ext == '.jpg' else 'PNG'
-                img.save(image_path, save_format, quality=50)
+                img.save(image_path, save_format, quality=85)
+
         except Exception as e:
             print(f"图片处理失败: {e}")
             if os.path.exists(image_path):
@@ -112,7 +113,7 @@ def download_image(url, output_dir):
             print(f"Content-Type: {response.headers.get('content-type')}")
         return None
 
-def compress_image(image_path, output_dir=None, max_size=(200, 200)):
+def compress_image(image_path, output_dir=None, max_size=(800, 800)):
     """压缩图像并保存"""
     try:
         # 获取原始文件大小
@@ -136,7 +137,7 @@ def compress_image(image_path, output_dir=None, max_size=(200, 200)):
                 compressed_path = image_path
 
             # 保存压缩后的图片
-            img.save(compressed_path, quality=50)
+            img.save(compressed_path, quality=85)
 
             # 获取压缩后文件大小
             compressed_size = os.path.getsize(compressed_path) / 1024  # 转换为 KB
