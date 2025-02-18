@@ -46,7 +46,17 @@ def preprocess_markdown(content):
         replacement = r'\1\\'
         return re.sub(pattern, replacement, text)
 
+    # 修改过长的链接
+    def shorten_links(url, limit=80):
+        return url if len(url) <= limit else url[:limit] + '...'
+
+    # 链接修改为可读形式,并缩短链接
+    _LINK_PATTERN = re.compile(r'(?<!!)\[(.*?)\]\((.*?)\)')
+    def convert_links_to_readable(text):
+        return _LINK_PATTERN.sub(r'`[\1](\2)`', text)
+
     content = add_backslash_to_md_images(content)
+    content = convert_links_to_readable(content)
     content = escape_html_tags(content)
 
     return content
