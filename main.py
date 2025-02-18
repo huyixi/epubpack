@@ -66,7 +66,15 @@ def download_image(url, output_dir):
         elif 'webp' in content_type or original_ext == '.webp':
             final_ext = '.jpg'  # 将 webp 转换为 jpg
         else:
-            final_ext = '.jpg'  # 默认使用 jpg
+            original_ext = os.path.splitext(url)[1].lower()
+            if original_ext in ['.jpg', '.jpeg']:
+                final_ext = '.jpg'
+            elif original_ext == '.png':
+                final_ext = '.png'
+            elif original_ext == '.gif':
+                final_ext = '.gif'
+            else:
+                final_ext = '.jpg'  # 默认用 jpg
 
         # 确保输出目录存在
         if not os.path.exists(output_dir):
@@ -264,6 +272,7 @@ def include_content(file_path, file_handler, base_level):
 
 def generate_with_pandoc(input_md, output_file, output_format):
     """使用 Pandoc 生成最终电子书"""
+    temp_dir = os.path.dirname(input_md)
     cmd = [
         "pandoc",
         input_md,
@@ -271,7 +280,9 @@ def generate_with_pandoc(input_md, output_file, output_format):
         output_file,
         "--toc",
         "--standalone",
-        "--no-highlight"
+        "--no-highlight",
+        "--resource-path=" + os.path.dirname(input_md),
+        "--resource-path=" + os.path.join(temp_dir,"images"),
     ]
 
     if output_format == "epub":
@@ -283,7 +294,12 @@ def generate_with_pandoc(input_md, output_file, output_format):
             cmd.extend(["--epub-cover-image=" + cover_image])
 
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
         if result.returncode == 0:
             print(f"成功生成电子书: {output_file}")
     except subprocess.CalledProcessError as e:
