@@ -40,6 +40,13 @@ def preprocess_markdown(content):
             flags=re.IGNORECASE
         )
 
+    # 在图片内容后面添加 \ 符号以避免 pandoc 生成 EPUB 时在下方附带图片标题
+    def add_backslash_to_md_images(text):
+        pattern = r'(!\[[^\]]*\]\([^)]+\))'
+        replacement = r'\1\\'
+        return re.sub(pattern, replacement, text)
+
+    content = add_backslash_to_md_images(content)
     content = escape_html_tags(content)
 
     return content
@@ -286,6 +293,9 @@ def generate_with_pandoc(input_md, output_file, output_format):
         "--resource-path=" + os.path.join(temp_dir,"images"),
     ]
 
+    # lua_filter_path = os.path.join(os.path.dirname(__file__), "removeAlt.lua")
+    # cmd.append(f"--lua-filter={lua_filter_path}")
+
     if output_format == "epub":
         cmd.extend([
             "-f", "markdown+smart"
@@ -308,11 +318,10 @@ def generate_with_pandoc(input_md, output_file, output_format):
         print(f"错误输出: {e.stderr}")
 
 def generate_ebook(root_dir, output_format="epub", output_name=None, output_dir=None):
-    """生成电子书的主要函数"""
     temp_dir = os.path.join(root_dir, "_booktemp")
     os.makedirs(temp_dir, exist_ok=True)
 
-    # 为图片创建专门的目录
+    # 为图片创建目录
     images_dir = os.path.join(temp_dir, "images")
     os.makedirs(images_dir, exist_ok=True)
 
