@@ -3,7 +3,6 @@
 
 import os
 import subprocess
-from sys import orig_argv
 import requests
 from datetime import datetime
 from PIL import Image
