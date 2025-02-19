@@ -3,6 +3,7 @@
 
 import os
 import subprocess
+from sys import orig_argv
 import requests
 from datetime import datetime
 from PIL import Image
@@ -32,13 +33,16 @@ def load_config(config_path="./config/config.json"):
 
 def preprocess_markdown(content):
     # 部分 <img> 标签会导致 EPUB 报错
-    def escape_html_tags(text):
+    # 给 <img> 标签添加转义字符
+    # 避免匹配 `<img>` 标签
+    def escape_img_tags(text):
         return re.sub(
-            r'<(img)(\s+[^>]*?)?/?>',
-            lambda m: f"&lt;{m.group(1)}{m.group(2) or ''}&gt;",
+            r'(?<!`)(<img)(\s*>)(?!`)',
+            lambda m: f"&lt;{m.group(1)[1:]}{m.group(2)}",  # 此处仅为示例转换
             text,
             flags=re.IGNORECASE
         )
+
 
     # 在图片内容后面添加 \ 符号以避免 pandoc 生成 EPUB 时在下方附带图片标题
     def add_backslash_to_md_images(text):
@@ -57,7 +61,7 @@ def preprocess_markdown(content):
 
     content = add_backslash_to_md_images(content)
     content = convert_links_to_readable(content)
-    content = escape_html_tags(content)
+    content = escape_img_tags(content)
 
     return content
 
@@ -173,10 +177,29 @@ def compress_image(image_path, output_dir=None, max_size=(800, 800)):
 
 def process_image_urls_in_md(md_file, output_dir):
     """处理 Markdown 文件中的所有图像链接"""
+    """图像链接分为 Markdown 和 HTML 两种格式"""
     with open(md_file, 'r', encoding='utf-8') as f:
-        content = f.read()
+        original_content = f.read()
 
-    image_urls = re.findall(r'!\[.*?\]\((http[^\)]+)\)', content)
+    # 1) 提取出三重反引号的代码块
+    code_block_pattern = re.compile(r'```.*?```', re.DOTALL)
+    code_blocks = code_block_pattern.findall(original_content)
+
+    # 创建用来存放代码块的占位符
+    content = original_content
+    for i, block in enumerate(code_blocks):
+        placeholder = f"__CODE_BLOCK_{i}__"
+        # 使用 replace(block, placeholder, 1) 保证只替换一次，否则如果某个代码块内容重复，会出问题
+        content = content.replace(block, placeholder, 1)
+
+    # 匹配 Markdown 语法的图像链接
+    markdown_image_urls = re.findall(r'!\[.*?\]\((http[^\)]+)\)', content)
+    # 匹配 HTML 语法的图像链接
+    html_image_urls = re.findall(r'<img[^>]+src="([^"]+)"', content)
+    image_urls = []
+    for url in markdown_image_urls + html_image_urls:
+            if url.startswith("http"):
+                image_urls.append(url)
     compressed_images = []
     replacements = []
 
@@ -206,6 +229,11 @@ def process_image_urls_in_md(md_file, output_dir):
 
     for original_url, new_filename in replacements:
         content = content.replace(original_url, f"images/{new_filename}")
+
+    # 还原代码块
+    for i, block in enumerate(code_blocks):
+        placeholder = f"__CODE_BLOCK_{i}__"
+        content = content.replace(placeholder, block,1)
 
     with open(md_file, 'w', encoding='utf-8') as f:
             f.write(content)
@@ -377,6 +405,7 @@ if __name__ == "__main__":
 
     successful = 0
     failed = 0
+    failed_dirs = []
 
     with tqdm(dirs_to_process, desc="总进度", position=0) as pbar:
         for item in pbar:
@@ -409,6 +438,7 @@ if __name__ == "__main__":
 
                 except Exception as e:
                     failed += 1
+                    failed_dirs.append(item)
                     tqdm.write(f"错误 - {item}: {str(e)}")
                     continue
 
@@ -416,3 +446,6 @@ if __name__ == "__main__":
             tqdm.write(f"完成: {item}")
 
     print(f"\n完成! 成功: {successful}, 失败: {failed}")
+    # 打印出生成失败的目录
+    if failed_dirs:
+        print(f"生成失败的目录: {failed_dirs}")
