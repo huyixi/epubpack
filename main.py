@@ -42,7 +42,6 @@ def preprocess_markdown(content):
             flags=re.IGNORECASE
         )
 
-
     # 在图片内容后面添加 \ 符号以避免 pandoc 生成 EPUB 时在下方附带图片标题
     def add_backslash_to_md_images(text):
         pattern = r'(!\[[^\]]*\]\([^)]+\))'
@@ -392,7 +391,7 @@ def generate_ebook(root_dir, output_format="epub", output_name=None, output_dir=
     generate_with_pandoc(main_md, output_file, output_format)
     return True
 
-if __name__ == "__main__":
+def main():
     CONFIG = load_config()
     base_dir = CONFIG["paths"]["base_dir"]
     output_dir =  CONFIG["paths"]["output_dir"]
@@ -448,3 +447,6 @@ if __name__ == "__main__":
     # 打印出生成失败的目录
     if failed_dirs:
         print(f"生成失败的目录: {failed_dirs}")
+
+if __name__ == "__main__":
+    main()
