@@ -66,73 +66,89 @@ def preprocess_markdown(content):
     return content
 
 def download_image(url, output_dir):
-    response = None
+    """Download an image from URL, process it, and save to the output directory."""
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-
-        # 从 URL 获取文件扩展名
-        original_ext = os.path.splitext(url)[1].lower()
-
-        # 获取 Content-Type
-        content_type = response.headers.get('content-type', '').lower()
-
-        # 根据 Content-Type 或 URL 确定正确的扩展名
-        if 'jpeg' in content_type or 'jpg' in content_type or original_ext in ['.jpg', '.jpeg']:
-            final_ext = '.jpg'
-        elif 'png' in content_type or original_ext == '.png':
-            final_ext = '.png'
-        elif 'gif' in content_type or original_ext == '.gif':
-            final_ext = '.gif'
-        elif 'webp' in content_type or original_ext == '.webp':
-            final_ext = '.jpg'  # 将 webp 转换为 jpg
-        else:
-            original_ext = os.path.splitext(url)[1].lower()
-            if original_ext in ['.jpg', '.jpeg']:
-                final_ext = '.jpg'
-            elif original_ext == '.png':
-                final_ext = '.png'
-            elif original_ext == '.gif':
-                final_ext = '.gif'
-            else:
-                final_ext = '.jpg'  # 默认用 jpg
-
-        # 确保输出目录存在
+        # Create output directory if it doesn't exist
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        # 生成唯一的文件名
-        hash_value = hashlib.md5(url.encode()).hexdigest()[:8]
-        image_name = f"image_{datetime.now().strftime('%H%M%S')}_{hash_value}{final_ext}"
-        image_path = os.path.join(output_dir, image_name)
+        # Download image
+        response = requests.get(url)
+        response.raise_for_status()
 
-        # 先保存原始图片数据
+        # Generate file path with appropriate extension
+        image_path = _generate_image_path(url, response, output_dir)
+
+        # Save the original image
         with open(image_path, 'wb') as f:
             f.write(response.content)
 
-        # 使用 PIL 处理图片
-        try:
-            with Image.open(image_path) as img:
-                # 转换为 RGB 模式
-                if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
-                    img = img.convert('RGB')
-                # 根据扩展名选择保存格式
-                save_format = 'JPEG' if final_ext == '.jpg' else 'PNG'
-                img.save(image_path, save_format, quality=70)
-
-        except Exception as e:
-            print(f"图片处理失败: {e}")
-            if os.path.exists(image_path):
-                os.remove(image_path)
+        # Process the image
+        if not _process_image(image_path):
             return None
 
         return image_path
 
     except Exception as e:
         print(f"图像下载失败:{url}, error:{e}")
-        if response:
-            print(f"Content-Type: {response.headers.get('content-type')}")
         return None
+
+
+def _get_extension(url, content_type):
+    """Determine file extension based on content type and URL."""
+    original_ext = os.path.splitext(url)[1].lower()
+
+    # Determine extension based on content type
+    if 'jpeg' in content_type or 'jpg' in content_type or original_ext in ['.jpg', '.jpeg']:
+        return '.jpg'
+    elif 'png' in content_type or original_ext == '.png':
+        return '.png'
+    elif 'gif' in content_type or original_ext == '.gif':
+        return '.gif'
+    elif 'webp' in content_type or original_ext == '.webp':
+        return '.jpg'  # Convert webp to jpg
+
+    # Fallback to URL extension
+    if original_ext in ['.jpg', '.jpeg', '.png', '.gif']:
+        return original_ext
+
+    # Default extension
+    return '.jpg'
+
+
+def _generate_image_path(url, response, output_dir):
+    """Generate a unique filename for the image."""
+    content_type = response.headers.get('content-type', '').lower()
+    final_ext = _get_extension(url, content_type)
+
+    # Create unique filename
+    hash_value = hashlib.md5(url.encode()).hexdigest()[:8]
+    image_name = f"image_{datetime.now().strftime('%H%M%S')}_{hash_value}{final_ext}"
+
+    return os.path.join(output_dir, image_name)
+
+
+def _process_image(image_path):
+    """Process the image with PIL."""
+    try:
+        with Image.open(image_path) as img:
+            # Convert to RGB mode if needed
+            if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                img = img.convert('RGB')
+
+            # Determine save format based on file extension
+            file_ext = os.path.splitext(image_path)[1].lower()
+            save_format = 'JPEG' if file_ext == '.jpg' else 'PNG'
+
+            # Save processed image
+            img.save(image_path, save_format, quality=70)
+        return True
+
+    except Exception as e:
+        print(f"图片处理失败: {e}")
+        if os.path.exists(image_path):
+            os.remove(image_path)
+        return False
 
 def compress_image(image_path, output_dir=None, max_size=(600, 600)):
     try:
