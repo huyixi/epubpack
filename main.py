@@ -7,8 +7,6 @@ import requests
 from datetime import datetime
 from PIL import Image
 import re
-from tqdm import tqdm
-from natsort import natsorted
 import concurrent.futures
 import json
 import logging
@@ -137,20 +135,9 @@ def download_image(url, output_dir):
         return None
 
 def compress_image(image_path, output_dir=None, max_size=(600, 600)):
-    """压缩图像并保存"""
     try:
-        # 获取原始文件大小
-        original_size = os.path.getsize(image_path) / 1024  # 转换为 KB
-
         with Image.open(image_path) as img:
-            # 获取原始图片尺寸
-            original_dimensions = img.size
-
-            # 压缩图片
             img.thumbnail(max_size, Image.Resampling.LANCZOS)
-
-            # 获取压缩后的尺寸
-            compressed_dimensions = img.size
 
             if output_dir:
                 if not os.path.exists(output_dir):
@@ -159,20 +146,10 @@ def compress_image(image_path, output_dir=None, max_size=(600, 600)):
             else:
                 compressed_path = image_path
 
-            # 保存压缩后的图片
             img.save(compressed_path, quality=90)
 
-            # 获取压缩后文件大小
-            compressed_size = os.path.getsize(compressed_path) / 1024  # 转换为 KB
-
-            # print(f"压缩图像: {compressed_path}")
-            # print(f"原始尺寸: {original_dimensions[0]}x{original_dimensions[1]}px")
-            # print(f"压缩后尺寸: {compressed_dimensions[0]}x{compressed_dimensions[1]}px")
-            # print(f"原始大小: {original_size:.2f}KB")
-            # print(f"压缩后大小: {compressed_size:.2f}KB")
-            # print(f"压缩率: {(1 - compressed_size/original_size)*100:.2f}%")
-
             return compressed_path
+
     except Exception as e:
         print(f"压缩图像失败: {image_path}, 错误: {e}")
         return None
@@ -220,14 +197,11 @@ def process_image_urls_in_md(md_file, output_dir):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = [executor.submit(process_single_url, url) for url in image_urls]
 
-        # 使用tqdm显示并行处理进度
-        with tqdm(total=len(image_urls), desc="并行处理图片") as pbar:
-            for future in concurrent.futures.as_completed(futures):
-                original_url, new_filename = future.result()
-                if new_filename:
-                    replacements.append((original_url, new_filename))
-                    compressed_images.append(os.path.join(output_dir, new_filename))
-                pbar.update(1)
+        for future in concurrent.futures.as_completed(futures):
+            original_url, new_filename = future.result()
+            if new_filename:
+                replacements.append((original_url, new_filename))
+                compressed_images.append(os.path.join(output_dir, new_filename))
 
     for original_url, new_filename in replacements:
         content = content.replace(original_url, f"images/{new_filename}")
@@ -252,7 +226,7 @@ def generate_metadata(root_dir):
 
 def process_directory(current_dir, file_handler, root_dir, level=0):
     """递归处理目录结构，同时跳过临时目录和隐藏文件，并按名称顺序排序"""
-    for item in natsorted(os.listdir(current_dir), key=lambda x: x.lower()):
+    for item in sorted(os.listdir(current_dir), key=lambda x: x.lower()):
         if item.startswith(('_', '.')):
             continue
 
@@ -300,13 +274,9 @@ def include_content(file_path, file_handler, base_level):
         for line in lines:
             # 检查行是否是标题
             if line.strip().startswith('#'):
-                # 计算当前标题的层级
                 current_level = len(line) - len(line.lstrip('#'))
-                # 调整标题层级
                 new_level = base_level + current_level
-                # 确保不超过6级标题
                 new_level = min(new_level, 6)
-                # 替换原有的#号
                 adjusted_line = '#' * new_level + line[current_level:]
                 adjusted_lines.append(adjusted_line)
             else:
@@ -369,12 +339,13 @@ def generate_ebook(root_dir, output_format="epub", output_name=None, output_dir=
     main_md = os.path.join(temp_dir, "main.md")
 
     with open(main_md, "w", encoding="utf-8") as f:
-        f.write("---\n")
-        f.write(f"title: {metadata['title']}\n")
-        f.write(f"author: {metadata['author']}\n")
-        f.write(f"date: {metadata['date']}\n")
-        f.write("lang: zh-CN\n")
-        f.write("---\n\n")
+        f.write(f"""---
+        title: {metadata['title']}
+        author: {metadata['author']}
+        date: {metadata['date']}
+        lang: zh-CN
+        ---
+        """)
 
         process_directory(root_dir, f, root_dir, 0)
 
@@ -409,43 +380,22 @@ def main():
     failed = 0
     failed_dirs = []
 
-    with tqdm(dirs_to_process, desc="总进度", position=0) as pbar:
-        for item in pbar:
-            pbar.set_description(f"处理目录: {item}")
-            full_path = os.path.join(base_dir, item)
+    for item in dirs_to_process:
+        full_path = os.path.join(base_dir, item)
 
-            # 子进度条显示当前处理的具体步骤
-            steps = ["检查目录", "处理图片", "生成元数据", "转换格式"]
-            with tqdm(total=len(steps), desc="当前任务", position=1, leave=False) as sub_pbar:
-                try:
-                    # 更新子进度条并显示当前步骤
-                    sub_pbar.set_description("检查目录结构")
-                    sub_pbar.update(1)
+        try:
+            if generate_ebook(full_path, "epub", output_name=item,output_dir=output_dir):
+                successful += 1
+            else:
+                failed += 1
 
-                    sub_pbar.set_description("处理和压缩图片")
-                    # 处理图片相关代码
-                    sub_pbar.update(1)
+        except Exception as exc:
+            failed += 1
+            failed_dirs.append(item)
+            print(f"处理 {item} 时出现错误: {exc}")
+            continue
 
-                    sub_pbar.set_description("生成元数据")
-                    # 生成元数据相关代码
-                    sub_pbar.update(1)
-
-                    sub_pbar.set_description("转换为电子书格式")
-                    if generate_ebook(full_path, "epub", output_name=item,output_dir=output_dir):
-                        successful += 1
-                        sub_pbar.update(1)
-                    else:
-                        failed += 1
-                        tqdm.write(f"警告: {item} 转换可能不完整")
-
-                except Exception as e:
-                    failed += 1
-                    failed_dirs.append(item)
-                    tqdm.write(f"错误 - {item}: {str(e)}")
-                    continue
-
-            # 在每个目录处理完成后显示结果
-            tqdm.write(f"完成: {item}")
+        print(f"成功: {item}")
 
     print(f"\n完成! 成功: {successful}, 失败: {failed}")
     # 打印出生成失败的目录
