@@ -322,7 +322,7 @@ def generate_with_pandoc(input_md, output_file, output_format):
                 text=True,
             )
         if result.returncode == 0:
-            print(f"成功生成电子书: {output_file}")
+            print(f"已经生成电子书: {output_file}")
     except subprocess.CalledProcessError as e:
         print(f"生成电子书失败: {e}")
         print(f"错误输出: {e.stderr}")
@@ -394,8 +394,6 @@ def main():
             failed_dirs.append(item)
             print(f"处理 {item} 时出现错误: {exc}")
             continue
-
-        print(f"成功: {item}")
 
     print(f"\n完成! 成功: {successful}, 失败: {failed}")
     # 打印出生成失败的目录
