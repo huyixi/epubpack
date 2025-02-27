@@ -339,13 +339,14 @@ def generate_ebook(root_dir, output_format="epub", output_name=None, output_dir=
     main_md = os.path.join(temp_dir, "main.md")
 
     with open(main_md, "w", encoding="utf-8") as f:
-        f.write(f"""---
-        title: {metadata['title']}
-        author: {metadata['author']}
-        date: {metadata['date']}
-        lang: zh-CN
-        ---
-        """)
+        f.write(
+            "---\n"
+            f"title: {metadata['title']}\n"
+            f"author: {metadata['author']}\n"
+            f"date: {metadata['date']}\n"
+            "lang: zh-CN\n"
+            "---\n"
+        )
 
         process_directory(root_dir, f, root_dir, 0)
 

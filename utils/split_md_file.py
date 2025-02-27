@@ -36,10 +36,10 @@ def split_markdown_file(input_file, lines_per_file):
 
 def main():
     # 输入 Markdown 文件的路径
-    input_file = './test/m2.md'
+    input_file = './test/1-100.md'
 
     # 设置每个分割部分的行数，可在此处修改参数
-    lines_per_file = 8
+    lines_per_file = 10
 
     # 检查文件是否存在
     if not os.path.exists(input_file):
