@@ -93,7 +93,6 @@ def download_image(url, output_dir):
         print(f"图像下载失败:{url}, error:{e}")
         return None
 
-
 def _get_extension(url, content_type):
     """Determine file extension based on content type and URL."""
     original_ext = os.path.splitext(url)[1].lower()
@@ -115,7 +114,6 @@ def _get_extension(url, content_type):
     # Default extension
     return '.jpg'
 
-
 def _generate_image_path(url, response, output_dir):
     """Generate a unique filename for the image."""
     content_type = response.headers.get('content-type', '').lower()
@@ -126,7 +124,6 @@ def _generate_image_path(url, response, output_dir):
     image_name = f"image_{datetime.now().strftime('%H%M%S')}_{hash_value}{final_ext}"
 
     return os.path.join(output_dir, image_name)
-
 
 def _process_image(image_path):
     """Process the image with PIL."""
@@ -150,7 +147,7 @@ def _process_image(image_path):
             os.remove(image_path)
         return False
 
-def compress_image(image_path, output_dir=None, max_size=(600, 600)):
+def compress_image(image_path, output_dir=None, max_size=(500, 500)):
     try:
         with Image.open(image_path) as img:
             img.thumbnail(max_size, Image.Resampling.LANCZOS)
@@ -162,7 +159,7 @@ def compress_image(image_path, output_dir=None, max_size=(600, 600)):
             else:
                 compressed_path = image_path
 
-            img.save(compressed_path, quality=90)
+            img.save(compressed_path, quality=80)
 
             return compressed_path
 
@@ -240,9 +237,12 @@ def generate_metadata(root_dir):
         "date": datetime.now().strftime("%Y-%m-%d"),
     }
 
+def natural_sort_key(s):
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
 def process_directory(current_dir, file_handler, root_dir, level=0):
     """递归处理目录结构，同时跳过临时目录和隐藏文件，并按名称顺序排序"""
-    for item in sorted(os.listdir(current_dir), key=lambda x: x.lower()):
+    for item in sorted(os.listdir(current_dir), key=natural_sort_key):
         if item.startswith(('_', '.')):
             continue
 
